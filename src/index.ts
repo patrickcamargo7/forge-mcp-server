@@ -135,17 +135,51 @@ class ForgeAPIClient {
     const response = await this.makeRequest(`/servers/${serverId}/load`);
     return response;
   }
+
+  async getSiteNginxAccessLog(serverId: number, siteId: number): Promise<string> {
+    const response = await this.makeRequest(`/servers/${serverId}/sites/${siteId}/logs/nginx-access`);
+    return response.content ?? "";
+  }
+
+  async getSiteNginxErrorLog(serverId: number, siteId: number): Promise<string> {
+    const response = await this.makeRequest(`/servers/${serverId}/sites/${siteId}/logs/nginx-error`);
+    return response.content ?? "";
+  }
+
+  async getSiteApplicationLog(serverId: number, siteId: number): Promise<string> {
+    const response = await this.makeRequest(`/servers/${serverId}/sites/${siteId}/logs/application`);
+    return response.content ?? "";
+  }
+
+  async getDeploymentLog(serverId: number, siteId: number, deploymentId: number): Promise<string> {
+    const response = await this.makeRequest(`/servers/${serverId}/sites/${siteId}/deployment-history/${deploymentId}/output`);
+    return response.output ?? response.content ?? "";
+  }
+
+  async getServerLog(serverId: number, logType: string): Promise<string> {
+    const response = await this.makeRequest(`/servers/${serverId}/logs/${encodeURIComponent(logType)}`);
+    return response.content ?? "";
+  }
+}
+
+function truncateLog(content: string, limit: number): string {
+  if (!content) return "";
+  const lines = content.split(/\r?\n/);
+  if (lines.length <= limit) return content;
+  const dropped = lines.length - limit;
+  return `[truncated: showing last ${limit} of ${lines.length} lines (${dropped} dropped)]\n` + lines.slice(-limit).join("\n");
 }
 
 class ForgeServer {
   private server: Server;
   private forgeClient: ForgeAPIClient;
+  private logLinesLimit: number;
 
   constructor() {
     this.server = new Server(
       {
         name: "@bretterer/forge-mcp-server",
-        version: "0.1.0",
+        version: "0.2.0",
       },
       {
         capabilities: {
@@ -158,6 +192,9 @@ class ForgeServer {
     if (!apiKey) {
       throw new Error("FORGE_API_KEY environment variable is required");
     }
+
+    const envLimit = parseInt(process.env.FORGE_LOG_LINES_LIMIT ?? "", 10);
+    this.logLinesLimit = Number.isFinite(envLimit) && envLimit > 0 ? envLimit : 200;
 
     this.forgeClient = new ForgeAPIClient(apiKey);
     this.setupToolHandlers();
@@ -365,6 +402,100 @@ class ForgeServer {
               required: ["serverId", "siteId"],
             },
           },
+          {
+            name: "get_site_nginx_access_log",
+            description: "Read the Nginx access log for a site (use to inspect HTTP traffic).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serverId: {
+                  type: "number",
+                  description: "The ID of the server",
+                },
+                siteId: {
+                  type: "number",
+                  description: "The ID of the site",
+                },
+              },
+              required: ["serverId", "siteId"],
+            },
+          },
+          {
+            name: "get_site_nginx_error_log",
+            description: "Read the Nginx error log for a site (use to diagnose 5xx and upstream errors).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serverId: {
+                  type: "number",
+                  description: "The ID of the server",
+                },
+                siteId: {
+                  type: "number",
+                  description: "The ID of the site",
+                },
+              },
+              required: ["serverId", "siteId"],
+            },
+          },
+          {
+            name: "get_site_application_log",
+            description: "Read the application log for a site (use to diagnose Laravel/app errors).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serverId: {
+                  type: "number",
+                  description: "The ID of the server",
+                },
+                siteId: {
+                  type: "number",
+                  description: "The ID of the site",
+                },
+              },
+              required: ["serverId", "siteId"],
+            },
+          },
+          {
+            name: "get_deployment_log",
+            description: "Read the output log for a specific deployment (use to diagnose deployment failures).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serverId: {
+                  type: "number",
+                  description: "The ID of the server",
+                },
+                siteId: {
+                  type: "number",
+                  description: "The ID of the site",
+                },
+                deploymentId: {
+                  type: "number",
+                  description: "The deployment ID (from get_deployments)",
+                },
+              },
+              required: ["serverId", "siteId", "deploymentId"],
+            },
+          },
+          {
+            name: "get_server_log",
+            description: "Read a server-level log by key (e.g. 'mysql', 'redis', 'system').",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serverId: {
+                  type: "number",
+                  description: "The ID of the server",
+                },
+                logType: {
+                  type: "string",
+                  description: "Log key, e.g. 'mysql', 'redis', 'system'",
+                },
+              },
+              required: ["serverId", "logType"],
+            },
+          },
         ],
       };
     });
@@ -536,6 +667,75 @@ class ForgeServer {
                 {
                   type: "text",
                   text: `Deployment state reset for site ${siteId} on server ${serverId}`,
+                },
+              ],
+            };
+          }
+
+          case "get_site_nginx_access_log": {
+            const { serverId, siteId } = args as { serverId: number; siteId: number };
+            const content = await this.forgeClient.getSiteNginxAccessLog(serverId, siteId);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: truncateLog(content, this.logLinesLimit),
+                },
+              ],
+            };
+          }
+
+          case "get_site_nginx_error_log": {
+            const { serverId, siteId } = args as { serverId: number; siteId: number };
+            const content = await this.forgeClient.getSiteNginxErrorLog(serverId, siteId);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: truncateLog(content, this.logLinesLimit),
+                },
+              ],
+            };
+          }
+
+          case "get_site_application_log": {
+            const { serverId, siteId } = args as { serverId: number; siteId: number };
+            const content = await this.forgeClient.getSiteApplicationLog(serverId, siteId);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: truncateLog(content, this.logLinesLimit),
+                },
+              ],
+            };
+          }
+
+          case "get_deployment_log": {
+            const { serverId, siteId, deploymentId } = args as {
+              serverId: number;
+              siteId: number;
+              deploymentId: number;
+            };
+            const content = await this.forgeClient.getDeploymentLog(serverId, siteId, deploymentId);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: truncateLog(content, this.logLinesLimit),
+                },
+              ],
+            };
+          }
+
+          case "get_server_log": {
+            const { serverId, logType } = args as { serverId: number; logType: string };
+            const content = await this.forgeClient.getServerLog(serverId, logType);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: truncateLog(content, this.logLinesLimit),
                 },
               ],
             };

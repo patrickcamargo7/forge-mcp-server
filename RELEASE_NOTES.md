@@ -1,5 +1,27 @@
 # Release Notes
 
+## v0.2.0 - 2026-10-19
+
+Forked from `bretterer/forge-mcp-server` v0.1.1. Adds log-reading tools so AI assistants (Cursor, Claude Desktop) can debug production issues directly.
+
+### ✨ New Features
+
+- 5 new read-only tools for production log access:
+  - `get_site_nginx_access_log` — Nginx access log per site
+  - `get_site_nginx_error_log` — Nginx error log per site
+  - `get_site_application_log` — Application (`storage/logs/laravel.log`) per site
+  - `get_deployment_log` — Output of a specific deployment
+  - `get_server_log` — Server-level log by key (`mysql`, `redis`, `system`, …)
+- New env var `FORGE_LOG_LINES_LIMIT` (default `200`) to truncate huge logs and keep AI context manageable. A header line is prepended indicating how many lines were dropped.
+
+### 🔧 Changes
+
+- Package renamed to `@patrickcamargo7/forge-mcp-server`
+- Server name in MCP handshake updated to `@patrickcamargo7/forge-mcp-server` v0.2.0
+- No state-changing tools were modified
+
+### 📦 No new dependencies
+
 ## v0.1.0 - 2025-06-01
 
 Initial release of the Laravel Forge MCP Server.

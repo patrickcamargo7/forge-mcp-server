@@ -1,7 +1,7 @@
 {
-  "name": "@bretterer/forge-mcp-server",
-  "version": "0.1.1",
-  "description": "Laravel Forge MCP server for managing servers, sites, and deployments",
+  "name": "@patrickcamargo7/forge-mcp-server",
+  "version": "0.2.0",
+  "description": "Laravel Forge MCP server for managing servers, sites, deployments, and reading production logs",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -18,9 +18,10 @@
     "laravel",
     "forge",
     "deployment",
-    "server-management"
+    "server-management",
+    "logs"
   ],
-  "author": "Your Name",
+  "author": "Patrick Camargo",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0"
@@ -35,6 +36,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bretterer/forge-mcp-server.git"
+    "url": "git+https://github.com/patrickcamargo7/forge-mcp-server.git"
   }
 }
